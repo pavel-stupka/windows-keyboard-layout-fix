@@ -6,12 +6,34 @@ configuration. It targets the long-standing Windows annoyance where Remote
 Desktop (and a few other system-level events) silently inject extra layouts
 into a session even though the language settings remain unchanged.
 
-The tool is one self-contained `.exe`. It needs no installer, no
-Administrator rights, and writes nothing to disk.
+The tool is one self-contained `.exe` that needs no Administrator rights.
+The one-shot mode writes nothing to disk; the optional background watcher
+(see `--install` below) stages a per-user copy under `%LOCALAPPDATA%\KbFix\`
+and is fully reversible with `--uninstall`.
 
 ## Use
 
-One-shot mode (unchanged from v1):
+### Easiest: double-click the wrappers
+
+A release build (`build.cmd release`) drops `kbfix.exe` into `dist\` along
+with three small batch wrappers you can double-click from Explorer — no
+terminal needed:
+
+| Wrapper         | What it does                                          |
+|-----------------|-------------------------------------------------------|
+| `install.cmd`   | Installs the background watcher for the current user. |
+| `uninstall.cmd` | Stops the watcher and removes everything.             |
+| `status.cmd`    | Reports whether the watcher is running.               |
+
+Each wrapper opens a console window, runs `kbfix.exe` with the matching
+flag, and pauses at the end so you can read the output before closing the
+window. The same release build also drops a [`README.txt`](dist-README.txt)
+next to the wrappers with the full quick-start, troubleshooting notes, and
+exit-code reference for end users.
+
+### From a terminal — one-shot mode
+
+Performs a single cleanup pass and exits. Unchanged from v1:
 
 ```powershell
 .\kbfix.exe              # one-shot fix
@@ -19,11 +41,12 @@ One-shot mode (unchanged from v1):
 .\kbfix.exe --help       # full usage
 ```
 
-Background watcher (spec 003): `--install` stages the binary under
-`%LOCALAPPDATA%\KbFix\`, registers per-user autostart via
-`HKCU\...\Run\KbFixWatcher`, and launches a persistent watcher that
-re-runs the fix every couple of seconds for the rest of the user session.
-Per-user, no elevation, fully reversible.
+### From a terminal — background watcher
+
+`--install` stages the binary under `%LOCALAPPDATA%\KbFix\`, registers
+per-user autostart via `HKCU\...\Run\KbFixWatcher`, and launches a
+persistent watcher that re-runs the fix every couple of seconds for the
+rest of the user session. Per-user, no elevation, fully reversible.
 
 ```powershell
 .\kbfix.exe --install    # set it and forget it
@@ -31,11 +54,18 @@ Per-user, no elevation, fully reversible.
 .\kbfix.exe --uninstall  # stop watcher, clean everything up
 ```
 
-Exit codes: `0` success/no-op/healthy, `1` failure, `2` unsupported platform,
-`3` refused (e.g. empty persisted set), `64` usage error; for `--status`
-additionally: `10` not installed, `11` installed but watcher not running,
-`12` watcher running without autostart, `13` autostart points at a stale
-path, `14` mixed/corrupt state.
+The watcher logs to `%LOCALAPPDATA%\KbFix\watcher.log`. Set
+`KBFIX_DEBUG=1` in your environment before installing if you want
+per-poll-cycle DEBUG output in the log.
+
+### Exit codes
+
+`0` success / no-op / `--status: installed and healthy`, `1` failure,
+`2` unsupported platform, `3` refused (e.g. empty persisted set),
+`64` usage error. `--status` additionally uses: `10` not installed,
+`11` installed but watcher not running, `12` watcher running without
+autostart, `13` autostart points at a stale path, `14` mixed/corrupt
+state.
 
 ## Build
 

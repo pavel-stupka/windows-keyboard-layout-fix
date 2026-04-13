@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 
 namespace KbFix.Platform;
 
@@ -7,6 +8,7 @@ namespace KbFix.Platform;
 /// kept declaration-only — no business logic — so the platform layer can
 /// import them without dragging interop concerns into the rest of the code.
 /// </summary>
+[SupportedOSPlatform("windows")]
 internal static class Win32Interop
 {
     public const uint KLF_ACTIVATE = 0x00000001;
@@ -31,4 +33,8 @@ internal static class Win32Interop
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern IntPtr GetKeyboardLayout(uint idThread);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool FreeConsole();
 }

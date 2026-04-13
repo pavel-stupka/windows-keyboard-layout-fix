@@ -1,10 +1,11 @@
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using KbFix.Cli;
 using KbFix.Diagnostics;
 using KbFix.Domain;
 using KbFix.Platform;
+using KbFix.Platform.Install;
+using KbFix.Watcher;
 
 namespace KbFix;
 
@@ -31,12 +32,31 @@ internal static class Program
 
         if (options.Version)
         {
-            var version = Assembly.GetExecutingAssembly()
-                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-                ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString()
-                ?? "0.0.0";
+            // Trim-safe: AssemblyName.Version flows from <Version> in the csproj.
+            // ToString(3) emits MAJOR.MINOR.PATCH for proper semver per the 001 contract.
+            var version = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
             Console.Out.WriteLine($"kbfix {version}");
             return ExitCodes.Success;
+        }
+
+        if (options.Install)
+        {
+            return RunInstall(options);
+        }
+
+        if (options.Uninstall)
+        {
+            return RunUninstall(options);
+        }
+
+        if (options.Status)
+        {
+            return RunStatus(options);
+        }
+
+        if (options.Watch)
+        {
+            return WatcherMain.Run();
         }
 
         var reporter = new Reporter();
@@ -182,6 +202,100 @@ internal static class Program
         finally
         {
             gateway?.Dispose();
+        }
+    }
+
+    private static int RunStatus(Options options)
+    {
+        try
+        {
+            var state = WatcherDiscovery.Probe();
+            var report = StatusReporter.Format(state, options.Quiet);
+            Console.Out.Write(report);
+            return StatusReporter.ExitCodeFor(state.Classify());
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"ERROR: status probe failed: {ex.Message}");
+            return ExitCodes.Failure;
+        }
+    }
+
+    private static int RunUninstall(Options options)
+    {
+        var invokingPath = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(invokingPath))
+        {
+            Console.Error.WriteLine("ERROR: could not determine the current binary path.");
+            return ExitCodes.Failure;
+        }
+
+        try
+        {
+            var before = WatcherDiscovery.Probe();
+            var steps = InstallDecision.ComputeUninstallSteps(before, invokingPath);
+            var executor = new InstallExecutor();
+            var results = executor.Apply(steps, invokingPath);
+
+            var report = InstallReporter.FormatUninstall(before, results, options.Quiet);
+            Console.Out.Write(report);
+
+            var failed = results.Any(r => !r.Succeeded);
+            if (failed)
+            {
+                Console.Error.WriteLine("ERROR: one or more uninstall steps failed. See report above.");
+                return ExitCodes.Failure;
+            }
+
+            return ExitCodes.Success;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"ERROR: uninstall failed: {ex.Message}");
+            return ExitCodes.Failure;
+        }
+    }
+
+    private static int RunInstall(Options options)
+    {
+        var invokingPath = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(invokingPath))
+        {
+            Console.Error.WriteLine("ERROR: could not determine the current binary path.");
+            return ExitCodes.Failure;
+        }
+
+        try
+        {
+            var before = WatcherDiscovery.Probe();
+            var steps = InstallDecision.ComputeInstallSteps(before, invokingPath);
+            var executor = new InstallExecutor();
+            var results = executor.Apply(steps, invokingPath);
+
+            // Small delay so the spawned watcher has time to acquire the mutex
+            // before we probe state for the report.
+            if (results.Any(r => r.Step is SpawnWatcherStep))
+            {
+                System.Threading.Thread.Sleep(500);
+            }
+
+            var after = WatcherDiscovery.Probe();
+            var report = InstallReporter.FormatInstall(before, results, after, options.Quiet);
+            Console.Out.Write(report);
+
+            var failed = results.Any(r => !r.Succeeded);
+            if (failed)
+            {
+                Console.Error.WriteLine("ERROR: one or more install steps failed. See report above.");
+                return ExitCodes.Failure;
+            }
+
+            return ExitCodes.Success;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"ERROR: install failed: {ex.Message}");
+            return ExitCodes.Failure;
         }
     }
 }

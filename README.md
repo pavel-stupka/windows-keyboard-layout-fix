@@ -11,14 +11,31 @@ Administrator rights, and writes nothing to disk.
 
 ## Use
 
+One-shot mode (unchanged from v1):
+
 ```powershell
 .\kbfix.exe              # one-shot fix
 .\kbfix.exe --dry-run    # preview only
 .\kbfix.exe --help       # full usage
 ```
 
-Exit codes: `0` success or no-op, `1` failure, `2` unsupported platform,
-`3` refused (e.g. empty persisted set), `64` usage error.
+Background watcher (spec 003): `--install` stages the binary under
+`%LOCALAPPDATA%\KbFix\`, registers per-user autostart via
+`HKCU\...\Run\KbFixWatcher`, and launches a persistent watcher that
+re-runs the fix every couple of seconds for the rest of the user session.
+Per-user, no elevation, fully reversible.
+
+```powershell
+.\kbfix.exe --install    # set it and forget it
+.\kbfix.exe --status     # running + autostart state + log path
+.\kbfix.exe --uninstall  # stop watcher, clean everything up
+```
+
+Exit codes: `0` success/no-op/healthy, `1` failure, `2` unsupported platform,
+`3` refused (e.g. empty persisted set), `64` usage error; for `--status`
+additionally: `10` not installed, `11` installed but watcher not running,
+`12` watcher running without autostart, `13` autostart points at a stale
+path, `14` mixed/corrupt state.
 
 ## Build
 
@@ -46,18 +63,27 @@ See [`specs/001-fix-keyboard-layouts/quickstart.md`](specs/001-fix-keyboard-layo
 for the run instructions and the **mandatory manual RDP verification** that
 gates every release per the project constitution.
 
-## v1 scope
+## Scope
 
-Removal-only, one-shot, current-user session, no GUI, no background watcher.
-A resident watcher mode that re-runs the cleanup automatically when Windows
-re-injects a layout is **explicitly out of scope for v1** and reserved for a
-possible later iteration.
+Removal-only, current-user session, no GUI. Two modes:
+
+- **One-shot** (`kbfix`) — runs once and exits. The original v1 behaviour.
+- **Background watcher** (`kbfix --install` / `--watch`) — keeps running
+  in the user session and re-applies the fix automatically whenever the
+  session drifts (e.g. after an RDP disconnect). Added in spec 003.
+
+No Administrator rights at any point. Published as a single self-contained
+~12 MB `.exe` — no .NET runtime needed on the target machine.
 
 ## Specification
 
-The full feature spec, plan, contracts, and task list live under
-`specs/001-fix-keyboard-layouts/` (the utility itself) and
-`specs/002-build-script/` (the `build.cmd` entry point).
+The full feature spec, plan, contracts, and task list live under:
+
+- `specs/001-fix-keyboard-layouts/` — the original one-shot utility.
+- `specs/002-build-script/` — the `build.cmd` entry point.
+- `specs/003-background-watcher/` — the background watcher, `--install` /
+  `--uninstall` / `--status` commands, and the trimming work that shrank
+  the binary from 80+ MB to ~12 MB.
 
 ## How this project was built
 

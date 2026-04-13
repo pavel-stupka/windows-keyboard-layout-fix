@@ -130,6 +130,9 @@ if errorlevel 1 exit /b !ERRORLEVEL!
 call :stage_build
 if errorlevel 1 exit /b !ERRORLEVEL!
 
+call :stage_wrappers
+if errorlevel 1 exit /b !ERRORLEVEL!
+
 if "%DO_TEST%"=="1" (
     call :stage_test
     if errorlevel 1 exit /b !ERRORLEVEL!
@@ -219,6 +222,44 @@ if errorlevel 1 (
     set "BUILD_EXIT=!ERRORLEVEL!"
     call :fail build "dotnet publish exited with code !BUILD_EXIT!"
     exit /b !BUILD_EXIT!
+)
+exit /b 0
+
+:stage_wrappers
+rem Generate install.cmd / uninstall.cmd / status.cmd alongside kbfix.exe
+rem so the user can double-click them from Explorer. Each wrapper cd's to
+rem its own directory, invokes kbfix.exe with the corresponding flag, and
+rem pauses at the end so the output stays visible.
+call :write_wrapper install --install
+if errorlevel 1 exit /b !ERRORLEVEL!
+call :write_wrapper uninstall --uninstall
+if errorlevel 1 exit /b !ERRORLEVEL!
+call :write_wrapper status --status
+if errorlevel 1 exit /b !ERRORLEVEL!
+exit /b 0
+
+:write_wrapper
+rem %~1 = basename (install / uninstall / status)
+rem %~2 = flag to pass to kbfix.exe (--install / --uninstall / --status)
+rem
+rem The generated wrapper uses the fully-qualified "%~dp0kbfix.exe" form
+rem rather than a bare "kbfix.exe". On modern Windows with "safe process
+rem search mode" enabled, cmd does not search the current directory for
+rem executables, so a relative "kbfix.exe" can fail even after cd'ing
+rem into the wrapper's directory. The absolute form always works.
+set "WRAPPER_PATH=%OUTPUT_DIR%\%~1.cmd"
+> "%WRAPPER_PATH%" (
+    echo @echo off
+    echo setlocal
+    echo cd /d "%%~dp0"
+    echo "%%~dp0kbfix.exe" %~2
+    echo echo.
+    echo pause
+    echo endlocal
+)
+if not exist "%WRAPPER_PATH%" (
+    call :fail build "failed to write %WRAPPER_PATH%"
+    exit /b !ERRORLEVEL!
 )
 exit /b 0
 

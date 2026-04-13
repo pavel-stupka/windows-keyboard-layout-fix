@@ -20,11 +20,31 @@ Administrator rights, and writes nothing to disk.
 Exit codes: `0` success or no-op, `1` failure, `2` unsupported platform,
 `3` refused (e.g. empty persisted set), `64` usage error.
 
-## Build, run, verify
+## Build
+
+A `build.cmd` script at the repository root wraps `dotnet publish` and drops
+a runnable, self-contained `kbfix.exe` into `dist\`:
+
+```cmd
+build.cmd                       :: Debug build (default) into dist\
+build.cmd release               :: Release build into dist\
+build.cmd release --test        :: Release build, then run the test suite
+build.cmd debug --output out\x  :: custom output directory
+build.cmd --no-clean            :: keep prior artifacts in dist\
+build.cmd --help                :: list every switch and default
+```
+
+The script validates that a .NET 8 SDK is on `PATH`, cleans the output
+directory, runs `dotnet publish` for the selected configuration, optionally
+runs `dotnet test` against `KbFix.Tests`, and propagates `dotnet`'s exit code.
+See [`specs/002-build-script/contracts/cli.md`](specs/002-build-script/contracts/cli.md)
+for the full contract.
+
+## Run and verify
 
 See [`specs/001-fix-keyboard-layouts/quickstart.md`](specs/001-fix-keyboard-layouts/quickstart.md)
-for the build command, the run instructions, and the **mandatory manual RDP
-verification** that gates every release per the project constitution.
+for the run instructions and the **mandatory manual RDP verification** that
+gates every release per the project constitution.
 
 ## v1 scope
 
@@ -36,4 +56,17 @@ possible later iteration.
 ## Specification
 
 The full feature spec, plan, contracts, and task list live under
-`specs/001-fix-keyboard-layouts/`.
+`specs/001-fix-keyboard-layouts/` (the utility itself) and
+`specs/002-build-script/` (the `build.cmd` entry point).
+
+## How this project was built
+
+Every artifact in this repository — the C# source under `src/`, the tests
+under `tests/`, `build.cmd`, the constitution under `.specify/memory/`, and
+every document under `specs/` — was produced by [Claude Code](https://claude.com/claude-code)
+running the **Claude Opus 4.6 (1M context)** model, driven by the
+[GitHub Spec Kit](https://github.com/github/spec-kit) workflow
+(`/speckit.specify` → `/speckit.plan` → `/speckit.tasks` → `/speckit.implement`).
+The human author's role was limited to stating intent in Czech at each
+speckit phase, reviewing the generated plans, and running the manual
+verification steps that the constitution requires.

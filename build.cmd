@@ -12,6 +12,7 @@ if "%REPO_ROOT:~-1%"=="\" set "REPO_ROOT=%REPO_ROOT:~0,-1%"
 set "SOLUTION_PATH=%REPO_ROOT%\KbFix.sln"
 set "PROJECT_PATH=%REPO_ROOT%\src\KbFix\KbFix.csproj"
 set "DEFAULT_OUTPUT_DIR=%REPO_ROOT%\dist"
+set "README_TEMPLATE=%REPO_ROOT%\dist-README.txt"
 
 rem --- defaults (T006) ---------------------------------------------------------
 set "CONFIGURATION=Debug"
@@ -131,6 +132,9 @@ call :stage_build
 if errorlevel 1 exit /b !ERRORLEVEL!
 
 call :stage_wrappers
+if errorlevel 1 exit /b !ERRORLEVEL!
+
+call :stage_readme
 if errorlevel 1 exit /b !ERRORLEVEL!
 
 if "%DO_TEST%"=="1" (
@@ -259,6 +263,22 @@ set "WRAPPER_PATH=%OUTPUT_DIR%\%~1.cmd"
 )
 if not exist "%WRAPPER_PATH%" (
     call :fail build "failed to write %WRAPPER_PATH%"
+    exit /b !ERRORLEVEL!
+)
+exit /b 0
+
+:stage_readme
+rem Copy the dist-README.txt template from the repo root into the output
+rem directory as README.txt. End users who receive a kbfix.exe drop get a
+rem self-contained description of the tool and its wrappers alongside the
+rem binary.
+if not exist "%README_TEMPLATE%" (
+    call :fail build "README template not found at %README_TEMPLATE%"
+    exit /b !ERRORLEVEL!
+)
+copy /y "%README_TEMPLATE%" "%OUTPUT_DIR%\README.txt" >nul
+if errorlevel 1 (
+    call :fail build "failed to copy README.txt into %OUTPUT_DIR%"
     exit /b !ERRORLEVEL!
 )
 exit /b 0

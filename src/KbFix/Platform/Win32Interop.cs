@@ -37,4 +37,11 @@ internal static class Win32Interop
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool FreeConsole();
+
+    public const uint MOVEFILE_REPLACE_EXISTING = 0x00000001;
+    public const uint MOVEFILE_DELAY_UNTIL_REBOOT = 0x00000004;
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool MoveFileEx(string lpExistingFileName, string? lpNewFileName, uint dwFlags);
 }

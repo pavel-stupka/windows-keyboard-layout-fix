@@ -126,8 +126,21 @@ internal sealed class InstallExecutor
     {
         if (invokingIsStaged)
         {
+            // Windows forbids deleting the executable of a running process, but
+            // it permits renaming it. Move ourselves out of the staging dir
+            // so the dir can be cleaned up, then mark the moved copy for
+            // deletion at next reboot.
+            var moved = BinaryStaging.MoveRunningBinaryToTempForRebootDelete();
+            if (moved)
+            {
+                return new StepResult(step, true, "moved to %TEMP% (cleaned up at next reboot)");
+            }
+
+            // Move failed — fall back to leaving the binary in place and
+            // skipping the directory cleanup so we don't leave an orphan file
+            // inside a half-deleted dir.
             skipDirectoryDelete = true;
-            return new StepResult(step, true, "skipped (currently running this binary)");
+            return new StepResult(step, true, "skipped (currently running and rename failed)");
         }
 
         var deleted = BinaryStaging.DeleteStagedBinary();

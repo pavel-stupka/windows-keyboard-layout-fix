@@ -179,14 +179,17 @@ public class InstallDecisionTests
     }
 
     [Fact]
-    public void Uninstall_from_staged_binary_skips_directory_delete()
+    public void Uninstall_from_staged_binary_still_emits_full_cleanup_sequence()
     {
-        // User is running `--uninstall` from the staged copy itself.
+        // User is running `--uninstall` from the staged copy itself. The
+        // executor handles the "cannot delete running exe" constraint
+        // internally (rename-to-temp + reboot-delete), so the decision
+        // function emits the same steps as a clean uninstall from Downloads.
         var steps = InstallDecision.ComputeUninstallSteps(InstalledHealthy(pid: 123), StagedPath);
 
         Assert.Contains(steps, s => s is DeleteRunKeyStep);
         Assert.Contains(steps, s => s is DeleteStagedBinaryStep);
-        Assert.DoesNotContain(steps, s => s is DeleteStagingDirectoryStep);
+        Assert.Contains(steps, s => s is DeleteStagingDirectoryStep);
     }
 
     [Fact]

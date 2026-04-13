@@ -84,19 +84,16 @@ internal static class InstallDecision
             steps.Add(new DeleteRunKeyStep());
         }
 
-        var invokingIsStaged = PathsEqual(invokingBinaryPath, state.StagedBinaryPath);
-
-        if (state.StagedBinaryExists && !invokingIsStaged)
+        if (state.StagedBinaryExists)
         {
+            // Always emit both steps. If the invoking binary IS the staged
+            // copy, InstallExecutor handles the Windows "cannot delete
+            // running executable" constraint by renaming the file to %TEMP%
+            // and scheduling it for reboot-delete, which leaves the staging
+            // directory empty and the DeleteStagingDirectoryStep can then
+            // proceed normally.
             steps.Add(new DeleteStagedBinaryStep());
             steps.Add(new DeleteStagingDirectoryStep());
-        }
-        else if (state.StagedBinaryExists && invokingIsStaged)
-        {
-            // Cannot delete our own executable on Windows. The executor emits
-            // a note and leaves the file in place; the Run key is still gone,
-            // so autostart will not resurrect it.
-            steps.Add(new DeleteStagedBinaryStep());
         }
 
         return steps;

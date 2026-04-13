@@ -43,6 +43,53 @@ internal static class BinaryStaging
         }
     }
 
+    /// <summary>
+    /// Uninstall from the staged binary is the one case where <see cref="DeleteStagedBinary"/>
+    /// cannot work — Windows forbids deleting the executable of a running process.
+    /// However, Windows DOES allow renaming a running executable. This method
+    /// moves the staged binary to a unique file under <c>%TEMP%</c>, then schedules
+    /// that temp copy for deletion at the next reboot via
+    /// <c>MoveFileEx(..., MOVEFILE_DELAY_UNTIL_REBOOT)</c>. After this call the
+    /// staging directory no longer contains the running executable, so the
+    /// caller can delete the directory cleanly.
+    /// </summary>
+    /// <returns>True if the move succeeded. False if anything went wrong — in
+    /// that case the caller should fall back to leaving the binary in place.</returns>
+    public static bool MoveRunningBinaryToTempForRebootDelete()
+    {
+        try
+        {
+            var staged = WatcherInstallation.DefaultStagedBinaryPath;
+            if (!File.Exists(staged))
+            {
+                return false;
+            }
+
+            var tempPath = Path.Combine(
+                Path.GetTempPath(),
+                $"kbfix-uninstalled-{Guid.NewGuid():N}.exe");
+
+            File.Move(staged, tempPath);
+
+            // Schedule the temp copy for deletion at next reboot. Best-effort;
+            // if this fails the file just sits in %TEMP% until the OS cleans it.
+            try
+            {
+                Win32Interop.MoveFileEx(tempPath, null, Win32Interop.MOVEFILE_DELAY_UNTIL_REBOOT);
+            }
+            catch
+            {
+                // swallow
+            }
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public static void DeleteStagingDirectory()
     {
         try

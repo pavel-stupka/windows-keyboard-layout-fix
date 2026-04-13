@@ -65,7 +65,13 @@ internal static class WatcherMain
                 EventResetMode.ManualReset,
                 WatcherInstallation.StopEventName);
 
-            var log = new WatcherLog(WatcherInstallation.LogFilePath, WatcherInstallation.LogFileRotatedPath);
+            var logLevel = Environment.GetEnvironmentVariable("KBFIX_DEBUG") == "1"
+                ? WatcherLogLevel.Debug
+                : WatcherLogLevel.Info;
+            var log = new WatcherLog(
+                WatcherInstallation.LogFilePath,
+                WatcherInstallation.LogFileRotatedPath,
+                logLevel);
             var flapDetector = FlapDetector.CreateDefault();
             using var reconciler = new SessionReconciler();
 

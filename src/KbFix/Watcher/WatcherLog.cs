@@ -15,6 +15,19 @@ internal interface IWatcherLog
 }
 
 /// <summary>
+/// Log verbosity levels. <see cref="Info"/> is the default and records only
+/// meaningful events (start, stop, applied reconciliations, failures, refusals,
+/// flap backoff). <see cref="Debug"/> additionally records every poll-cycle
+/// no-op, which is chatty and is only useful while troubleshooting.
+/// Enabled via the <c>KBFIX_DEBUG=1</c> environment variable.
+/// </summary>
+internal enum WatcherLogLevel
+{
+    Info = 0,
+    Debug = 1,
+}
+
+/// <summary>
 /// Size-bounded text log for the background watcher. Writes ISO-8601 UTC
 /// timestamps to <see cref="WatcherInstallation.LogFilePath"/>, rotates once
 /// to <see cref="WatcherInstallation.LogFileRotatedPath"/> when the file
@@ -26,18 +39,36 @@ internal sealed class WatcherLog : IWatcherLog
     private readonly string _path;
     private readonly string _rotatedPath;
     private readonly long _rotateBytes;
+    private readonly WatcherLogLevel _level;
     private readonly object _lock = new();
 
-    public WatcherLog(string path, string rotatedPath, long rotateBytes = 64 * 1024)
+    public WatcherLog(
+        string path,
+        string rotatedPath,
+        WatcherLogLevel level = WatcherLogLevel.Info,
+        long rotateBytes = 64 * 1024)
     {
         _path = path;
         _rotatedPath = rotatedPath;
+        _level = level;
         _rotateBytes = rotateBytes;
     }
 
     public void Start() => Write("INFO", "start");
     public void Stop() => Write("INFO", "stop");
-    public void ReconcileNoOp() => Write("DEBUG", "reconcile-noop");
+
+    public void ReconcileNoOp()
+    {
+        // No-ops happen on every quiet poll cycle. At INFO level this would
+        // grow the log by tens of lines per minute for no useful signal.
+        // Only record them when the user has explicitly asked for debug output.
+        if (_level < WatcherLogLevel.Debug)
+        {
+            return;
+        }
+        Write("DEBUG", "reconcile-noop");
+    }
+
     public void ReconcileApplied(int count) => Write("INFO", $"reconcile-applied count={count}");
     public void ReconcileFailed(string reason) => Write("WARN", $"reconcile-failed reason={Sanitize(reason)}");
     public void FlapBackoff() => Write("WARN", "flap-backoff");

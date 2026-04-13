@@ -202,15 +202,17 @@ internal static class InstallReporter
         var deleteResult = results.FirstOrDefault(r => r.Step is DeleteStagedBinaryStep);
         if (deleteResult is null)
         {
-            return $"{before.StagedBinaryPath}";
+            return before.StagedBinaryPath;
         }
 
-        if (deleteResult.Note?.Contains("currently running") == true)
+        return deleteResult.Note switch
         {
-            return $"{before.StagedBinaryPath}  (deletion skipped — currently in use; cleaned up on next run from a different location)";
-        }
-
-        return $"{before.StagedBinaryPath}  (deleted)";
+            InstallExecutor.NoteDeleted => $"{before.StagedBinaryPath}  (deleted)",
+            InstallExecutor.NoteMovedForRebootDelete => $"{before.StagedBinaryPath}  (moved to %TEMP% — Windows will remove it at the next reboot)",
+            InstallExecutor.NoteNotPresent => "not present",
+            InstallExecutor.NoteDeleteFailed => $"{before.StagedBinaryPath}  (delete FAILED — file still present; try running --uninstall again from a different location)",
+            _ => before.StagedBinaryPath,
+        };
     }
 
     // -------- status lines --------

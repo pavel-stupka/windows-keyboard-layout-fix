@@ -15,13 +15,18 @@ internal sealed class InstallExecutor
 {
     public sealed record StepResult(InstallStep Step, bool Succeeded, string? Note);
 
+    // Step result notes used by the reporter to format user-visible text.
+    // Kept as constants to avoid stringly-typed matching scattered across files.
+    public const string NoteDeleted = "deleted";
+    public const string NoteNotPresent = "not present";
+    public const string NoteMovedForRebootDelete = "moved to %TEMP% (cleaned up at next reboot)";
+    public const string NoteDeleteFailed = "delete failed — file still in staging directory";
+
     public IReadOnlyList<StepResult> Apply(
         IEnumerable<InstallStep> steps,
         string invokingBinaryPath)
     {
         var results = new List<StepResult>();
-        var invokingIsStaged = PathsEqual(invokingBinaryPath, WatcherInstallation.DefaultStagedBinaryPath);
-        var skipDirectoryDelete = false;
 
         foreach (var step in steps)
         {
@@ -34,8 +39,8 @@ internal sealed class InstallExecutor
                 SignalStopEventStep s => ApplySignalStopEvent(step, s),
                 ForceKillWatcherStep f => ApplyForceKill(step, f),
                 SpawnWatcherStep sp => ApplySpawnWatcher(step, sp),
-                DeleteStagedBinaryStep => ApplyDeleteStagedBinary(step, invokingIsStaged, ref skipDirectoryDelete),
-                DeleteStagingDirectoryStep => ApplyDeleteStagingDirectory(step, skipDirectoryDelete),
+                DeleteStagedBinaryStep => ApplyDeleteStagedBinary(step),
+                DeleteStagingDirectoryStep => ApplyDeleteStagingDirectory(step),
                 ReportStatusStep => new StepResult(step, true, null),
                 _ => new StepResult(step, false, $"unknown step type: {step.GetType().Name}"),
             };
@@ -122,59 +127,27 @@ internal sealed class InstallExecutor
         }
     }
 
-    private static StepResult ApplyDeleteStagedBinary(InstallStep step, bool invokingIsStaged, ref bool skipDirectoryDelete)
+    private static StepResult ApplyDeleteStagedBinary(InstallStep step)
     {
-        if (invokingIsStaged)
+        // DeleteStagedBinary handles every case internally: first-try delete,
+        // retry-with-backoff for transient file-handle holds (common when a
+        // watcher process just exited and Windows has not yet released the
+        // .exe mapping), and fallback to rename-to-%TEMP%+reboot-delete for
+        // the self-uninstall case where the file handle is held permanently
+        // by THIS process.
+        return BinaryStaging.DeleteStagedBinary() switch
         {
-            // Windows forbids deleting the executable of a running process, but
-            // it permits renaming it. Move ourselves out of the staging dir
-            // so the dir can be cleaned up, then mark the moved copy for
-            // deletion at next reboot.
-            var moved = BinaryStaging.MoveRunningBinaryToTempForRebootDelete();
-            if (moved)
-            {
-                return new StepResult(step, true, "moved to %TEMP% (cleaned up at next reboot)");
-            }
-
-            // Move failed — fall back to leaving the binary in place and
-            // skipping the directory cleanup so we don't leave an orphan file
-            // inside a half-deleted dir.
-            skipDirectoryDelete = true;
-            return new StepResult(step, true, "skipped (currently running and rename failed)");
-        }
-
-        var deleted = BinaryStaging.DeleteStagedBinary();
-        return new StepResult(step, true, deleted ? null : "not present");
+            BinaryStaging.DeleteOutcome.Deleted => new StepResult(step, true, NoteDeleted),
+            BinaryStaging.DeleteOutcome.NotPresent => new StepResult(step, true, NoteNotPresent),
+            BinaryStaging.DeleteOutcome.MovedForRebootDelete => new StepResult(step, true, NoteMovedForRebootDelete),
+            BinaryStaging.DeleteOutcome.Failed => new StepResult(step, false, NoteDeleteFailed),
+            _ => new StepResult(step, false, "unknown"),
+        };
     }
 
-    private static StepResult ApplyDeleteStagingDirectory(InstallStep step, bool skipDirectoryDelete)
+    private static StepResult ApplyDeleteStagingDirectory(InstallStep step)
     {
-        if (skipDirectoryDelete)
-        {
-            return new StepResult(step, true, "skipped (binary still in use)");
-        }
-
         BinaryStaging.DeleteStagingDirectory();
         return new StepResult(step, true, null);
-    }
-
-    private static bool PathsEqual(string? a, string? b)
-    {
-        if (a is null || b is null)
-        {
-            return false;
-        }
-
-        try
-        {
-            return string.Equals(
-                Path.GetFullPath(a),
-                Path.GetFullPath(b),
-                StringComparison.OrdinalIgnoreCase);
-        }
-        catch
-        {
-            return false;
-        }
     }
 }

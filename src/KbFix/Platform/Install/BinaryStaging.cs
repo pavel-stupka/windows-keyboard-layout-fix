@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using System.Threading;
 using KbFix.Watcher;
 
 namespace KbFix.Platform.Install;
@@ -10,6 +11,27 @@ namespace KbFix.Platform.Install;
 [SupportedOSPlatform("windows")]
 internal static class BinaryStaging
 {
+    /// <summary>Outcome of <see cref="DeleteStagedBinary"/>.</summary>
+    public enum DeleteOutcome
+    {
+        /// <summary>File was present and successfully deleted.</summary>
+        Deleted,
+
+        /// <summary>File was not present to begin with — nothing to do.</summary>
+        NotPresent,
+
+        /// <summary>File delete failed (handle still held, most commonly by
+        /// this process or a watcher that has not yet fully released its
+        /// executable mapping), but the file was successfully renamed out of
+        /// the staging directory into <c>%TEMP%</c> and marked for deletion
+        /// at next reboot. The staging directory is now empty.</summary>
+        MovedForRebootDelete,
+
+        /// <summary>Delete AND rename-to-temp both failed. The file remains
+        /// in the staging directory. The uninstall step has partially failed.</summary>
+        Failed,
+    }
+
     public static void EnsureStagingDirectory()
     {
         Directory.CreateDirectory(WatcherInstallation.StagingDirectory);
@@ -22,40 +44,67 @@ internal static class BinaryStaging
     }
 
     /// <summary>
-    /// Returns true if the staged binary was deleted, false if it was already
-    /// absent. Does not throw; filesystem errors are swallowed and reported as
-    /// false so the caller can continue with the rest of the uninstall flow.
+    /// Attempt to remove the staged binary. Handles three scenarios:
+    /// <list type="number">
+    /// <item>File is present and not held → <see cref="File.Delete(string)"/> succeeds on the first try.</item>
+    /// <item>File is present but held transiently (a watcher just exited and Windows has not
+    /// released the executable mapping yet) → we retry for up to ~2 seconds with 100 ms backoff.</item>
+    /// <item>File is held by the currently-running process (uninstall invoked from the staged
+    /// copy itself) → retries will keep failing, so we fall back to the Windows rename-trick:
+    /// move the running .exe into <c>%TEMP%</c> and mark it for deletion at next reboot via
+    /// <c>MoveFileEx(MOVEFILE_DELAY_UNTIL_REBOOT)</c>. After the rename the staging directory
+    /// is empty, so the caller's directory-delete step will succeed normally.</item>
+    /// </list>
     /// </summary>
-    public static bool DeleteStagedBinary()
+    public static DeleteOutcome DeleteStagedBinary()
     {
-        try
+        var path = WatcherInstallation.DefaultStagedBinaryPath;
+        if (!File.Exists(path))
         {
-            if (!File.Exists(WatcherInstallation.DefaultStagedBinaryPath))
+            return DeleteOutcome.NotPresent;
+        }
+
+        const int MaxAttempts = 20;
+        const int DelayMs = 100;
+
+        for (var attempt = 0; attempt < MaxAttempts; attempt++)
+        {
+            try
             {
-                return false;
+                File.Delete(path);
+                return DeleteOutcome.Deleted;
             }
-            File.Delete(WatcherInstallation.DefaultStagedBinaryPath);
-            return true;
+            catch (UnauthorizedAccessException)
+            {
+                // File handle still held — retry after a short wait.
+            }
+            catch (IOException)
+            {
+                // Typically "file in use" — retry.
+            }
+            catch
+            {
+                break;
+            }
+
+            if (attempt < MaxAttempts - 1)
+            {
+                Thread.Sleep(DelayMs);
+            }
         }
-        catch
+
+        // Last resort: rename the file out of the staging directory and let
+        // Windows delete it at the next reboot. Works for the self-uninstall
+        // case and for any other persistent file-lock scenario.
+        if (TryMoveRunningBinaryToTempForRebootDelete())
         {
-            return false;
+            return DeleteOutcome.MovedForRebootDelete;
         }
+
+        return DeleteOutcome.Failed;
     }
 
-    /// <summary>
-    /// Uninstall from the staged binary is the one case where <see cref="DeleteStagedBinary"/>
-    /// cannot work — Windows forbids deleting the executable of a running process.
-    /// However, Windows DOES allow renaming a running executable. This method
-    /// moves the staged binary to a unique file under <c>%TEMP%</c>, then schedules
-    /// that temp copy for deletion at the next reboot via
-    /// <c>MoveFileEx(..., MOVEFILE_DELAY_UNTIL_REBOOT)</c>. After this call the
-    /// staging directory no longer contains the running executable, so the
-    /// caller can delete the directory cleanly.
-    /// </summary>
-    /// <returns>True if the move succeeded. False if anything went wrong — in
-    /// that case the caller should fall back to leaving the binary in place.</returns>
-    public static bool MoveRunningBinaryToTempForRebootDelete()
+    private static bool TryMoveRunningBinaryToTempForRebootDelete()
     {
         try
         {
@@ -90,42 +139,54 @@ internal static class BinaryStaging
         }
     }
 
+    /// <summary>
+    /// Remove the pid file, log files, and (if now empty) the staging directory.
+    /// Each file delete retries briefly in case a watcher process has just
+    /// exited and its handles are still in the OS close queue. Best-effort
+    /// throughout — never throws.
+    /// </summary>
     public static void DeleteStagingDirectory()
     {
+        TryDeleteWithRetry(WatcherInstallation.PidFilePath);
+        TryDeleteWithRetry(WatcherInstallation.LogFilePath);
+        TryDeleteWithRetry(WatcherInstallation.LogFileRotatedPath);
+
         try
         {
-            // Clean up pid + log files before removing the directory.
-            foreach (var path in new[]
+            if (Directory.Exists(WatcherInstallation.StagingDirectory)
+                && !Directory.EnumerateFileSystemEntries(WatcherInstallation.StagingDirectory).Any())
             {
-                WatcherInstallation.PidFilePath,
-                WatcherInstallation.LogFilePath,
-                WatcherInstallation.LogFileRotatedPath,
-            })
-            {
-                try
-                {
-                    if (File.Exists(path))
-                    {
-                        File.Delete(path);
-                    }
-                }
-                catch
-                {
-                    // best-effort
-                }
-            }
-
-            if (Directory.Exists(WatcherInstallation.StagingDirectory))
-            {
-                if (!Directory.EnumerateFileSystemEntries(WatcherInstallation.StagingDirectory).Any())
-                {
-                    Directory.Delete(WatcherInstallation.StagingDirectory);
-                }
+                Directory.Delete(WatcherInstallation.StagingDirectory);
             }
         }
         catch
         {
             // best-effort
+        }
+    }
+
+    private static void TryDeleteWithRetry(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            try
+            {
+                File.Delete(path);
+                return;
+            }
+            catch (UnauthorizedAccessException) { }
+            catch (IOException) { }
+            catch
+            {
+                return;
+            }
+
+            Thread.Sleep(100);
         }
     }
 }

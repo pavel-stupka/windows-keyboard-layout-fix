@@ -1,0 +1,41 @@
+# .NET
+bin/
+obj/
+out/
+dist/
+*.user
+*.suo
+*.userprefs
+*.swp
+*.cache
+*.dll
+*.pdb
+*.exe
+.vs/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Test results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# JetBrains Rider / ReSharper
+.idea/
+*.DotSettings.user
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Misc
+*.log
+*.tmp

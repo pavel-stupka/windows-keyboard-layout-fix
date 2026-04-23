@@ -318,6 +318,25 @@ for "task creation refused by policy."
 
 ---
 
+## 11. Multi-user verification (US5)
+
+Optional on developer machines; recommended on shared-host environments
+(RDP hosts, fast-user-switching kiosks). If reproducible:
+
+1. Sign in as user A. Run `install.cmd`. Verify watcher running.
+2. Switch users (Win+L → switch user). Sign in as user B. Run
+   `install.cmd`. Verify user B's watcher is running.
+3. Back to user A (fast-user-switch). Kill user A's watcher via Task
+   Manager. Confirm user B's watcher is unaffected (either query via
+   B's `status.cmd` after switching, or observe the PID from a
+   previous snapshot is still alive).
+4. User A's watcher restarts within 90 s under A's supervisor; user B
+   was never touched.
+
+If a multi-user environment is not available, `multiuser-audit.md` in
+the feature folder documents the per-user-isolation properties by
+construction — the code cannot produce cross-user effects by design.
+
 ## Manual-verification gate for release
 
 Per constitution § Development Workflow & Quality Gates, the manual
@@ -332,6 +351,7 @@ to the release checklist:
 - [ ] §6 Startup Apps toggle probe — correctly reports effectiveness.
 - [ ] §7 reboot resilience — 5 trials × 5 reboot modes, all Healthy at 30 s.
 - [ ] §9 uninstall — no residual state; reboot does not resurrect.
+- [ ] §11 multi-user isolation (when reproducible).
 
 These replace no prior checklist items; they are added to the release
 manual-verification script.

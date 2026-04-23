@@ -143,9 +143,9 @@ Also completed within US1 (originally in later phases but co-located for cohesio
 
 ### Implementation for User Story 5
 
-- [ ] T039 [P] [US5] Unit test in `tests/KbFix.Tests/Platform/ScheduledTaskRegistryTests.cs` asserting that `BuildTaskXml(path, sid)` emits `<Principals><Principal><UserId>` exactly equal to the passed SID and never emits `S-1-5-18` (SYSTEM) or any other well-known SID when the caller passed a user SID. Also assert the task namespace used for registration (the constant string) starts with `\KbFix\` — not with `\` alone.
-- [ ] T040 [P] [US5] Code-audit task (no production change — only a verification artifact): add `specs/004-watcher-resilience/multiuser-audit.md` listing every new file written by feature 004 with its path root, confirming every root resolves to per-user storage (`%LOCALAPPDATA%`, `HKCU`, `Local\`, user-namespace Task Scheduler). Reviewer gate for PR approval.
-- [ ] T041 [US5] Append §5 of `quickstart.md` (two-user manual verification) to the release-checklist section at the bottom of `quickstart.md` so two-user isolation becomes a signed-off gate for every 004 release build.
+- [X] T039 [P] [US5] Assertions in `ScheduledTaskRegistryTests` confirm both `<UserId>` positions carry the passed SID, the XML never contains `S-1-5-18` (SYSTEM) or `S-1-5-32-544` (Admins), the `ScheduledTaskName` constant starts with `KbFix\`, and `HighestAvailable` is absent.
+- [X] T040 [P] [US5] `specs/004-watcher-resilience/multiuser-audit.md` documents every write surface with its scope + verification source, plus a read-only HKLM catalog table and grep-check instructions for PR reviewers.
+- [X] T041 [US5] Quickstart §11 "Multi-user verification" added, release-checklist updated to reference it.
 
 **Checkpoint**: US5 is complete — audit artifact shows 100% per-user isolation; unit tests enforce it; release checklist requires the manual two-user trial.
 

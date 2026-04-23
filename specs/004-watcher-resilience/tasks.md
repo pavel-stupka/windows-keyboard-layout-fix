@@ -27,7 +27,7 @@ Single project layout inherited from features 001/002/003:
 
 **Purpose**: Sanity-check the existing solution before any new code lands. Feature 004 reuses the 001/002/003 project skeleton; no new projects, no new packages.
 
-- [ ] T001 Run `build.cmd release` and confirm the 003 baseline still builds green with no new warnings; record the current published binary size so T037 can verify there is no regression.
+- [X] T001 Run `build.cmd release` and confirm the 003 baseline still builds green with no new warnings; record the current published binary size so T037 can verify there is no regression. Baseline: 11,648,549 B (≈ 11.1 MB).
 
 ---
 
@@ -37,12 +37,12 @@ Single project layout inherited from features 001/002/003:
 
 **⚠️ CRITICAL**: No user story phase may begin until this phase is complete.
 
-- [ ] T002 [P] Extend `WatcherExitReason` enum in `src/KbFix/Watcher/WatcherLoop.cs` with `CrashedUnhandled`, `StartupFailed`, `CooperativeShutdown`, `SupervisorObservedDead` — values must be string-stable for JSON serialization (consumed by T006, T020–T022).
-- [ ] T003 [P] Extend `InstalledState` enum in `src/KbFix/Watcher/WatcherInstallation.cs` with `SupervisorBackingOff`, `SupervisorGaveUp`, `AutostartDegraded`; leave existing enum ordinals unchanged (consumed by T025, T027).
-- [ ] T004 [P] Add exit codes `15 SupervisorBackingOff`, `16 SupervisorGaveUp`, `17 AutostartDegraded` to `src/KbFix/Diagnostics/ExitCodes.cs` with XML doc comments pointing at `specs/004-watcher-resilience/contracts/cli.md` (consumed by T027).
-- [ ] T005 Extend `WatcherInstallation` record in `src/KbFix/Watcher/WatcherInstallation.cs` with four new fields — `ScheduledTaskEntry ScheduledTask`, `AutostartEffectiveness AutostartEffectiveness`, `SupervisorState SupervisorState`, `LastExitReason? LastExitReason`; also declare the three new record types `ScheduledTaskEntry`, `SupervisorState` (enum), `AutostartEffectiveness` (enum) exactly per `data-model.md` §2–4; update the `Classify()` method to implement the new-state priority order documented in `data-model.md` §5.
-- [ ] T006 Create `LastExitReasonStore` pure reader/writer in `src/KbFix/Watcher/LastExitReasonStore.cs` — single-record JSON at `%LOCALAPPDATA%\KbFix\last-exit.json` per `data-model.md` §1; must use `System.Text.Json` with a `[JsonSerializable(typeof(LastExitReason))]` source-generated context to stay trim-safe; `Read()` must return `null` on file-absent or schema-violating input (never throw); `Write()` must be atomic (write to `.tmp` then `File.Move` with overwrite) so a crash mid-write cannot corrupt the file.
-- [ ] T007 [P] Unit tests for `LastExitReasonStore` in `tests/KbFix.Tests/Watcher/LastExitReasonStoreTests.cs` — cover round-trip for each `WatcherExitReason` value, graceful null-return on missing file / invalid JSON / out-of-range enum, atomic-write semantics (write, interrupt via thrown exception, verify original file intact), max-`detail`-length truncation at 200 bytes UTF-8.
+- [X] T002 [P] Extend `WatcherExitReason` enum in `src/KbFix/Watcher/WatcherLoop.cs` with `CrashedUnhandled`, `StartupFailed`, `CooperativeShutdown`, `SupervisorObservedDead` — values must be string-stable for JSON serialization (consumed by T006, T020–T022).
+- [X] T003 [P] Extend `InstalledState` enum in `src/KbFix/Watcher/WatcherInstallation.cs` with `SupervisorBackingOff`, `SupervisorGaveUp`, `AutostartDegraded`; leave existing enum ordinals unchanged (consumed by T025, T027).
+- [X] T004 [P] Add exit codes `15 SupervisorBackingOff`, `16 SupervisorGaveUp`, `17 AutostartDegraded` to `src/KbFix/Diagnostics/ExitCodes.cs` with XML doc comments pointing at `specs/004-watcher-resilience/contracts/cli.md` (consumed by T027).
+- [X] T005 Extend `WatcherInstallation` record in `src/KbFix/Watcher/WatcherInstallation.cs` with four new fields — `ScheduledTaskEntry ScheduledTask`, `AutostartEffectiveness AutostartEffectiveness`, `SupervisorState SupervisorState`, `LastExitReason? LastExitReason`; also declare the three new record types `ScheduledTaskEntry`, `SupervisorState` (enum), `AutostartEffectiveness` (enum) exactly per `data-model.md` §2–4; update the `Classify()` method to implement the new-state priority order documented in `data-model.md` §5. (Init-only properties so 003 positional constructor stays backward-compatible; Classify falls through to 003 behaviour when 004 fields sit at their defaults.)
+- [X] T006 Create `LastExitReasonStore` pure reader/writer in `src/KbFix/Watcher/LastExitReasonStore.cs` — single-record JSON at `%LOCALAPPDATA%\KbFix\last-exit.json` per `data-model.md` §1; must use `System.Text.Json` with a `[JsonSerializable(typeof(LastExitReason))]` source-generated context to stay trim-safe; `Read()` must return `null` on file-absent or schema-violating input (never throw); `Write()` must be atomic (write to `.tmp` then `File.Move` with overwrite) so a crash mid-write cannot corrupt the file.
+- [X] T007 [P] Unit tests for `LastExitReasonStore` in `tests/KbFix.Tests/Watcher/LastExitReasonStoreTests.cs` — cover round-trip for each `WatcherExitReason` value, graceful null-return on missing file / invalid JSON / out-of-range enum, atomic-write semantics (write, interrupt via thrown exception, verify original file intact), max-`detail`-length truncation at 200 bytes UTF-8.
 
 **Checkpoint**: Foundation ready — shared types compile, tests pass, no runtime changes. User story phases can now begin.
 

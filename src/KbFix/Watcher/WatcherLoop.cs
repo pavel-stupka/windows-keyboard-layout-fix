@@ -7,6 +7,20 @@ internal enum WatcherExitReason
 
     /// <summary>Loop exited because the persisted configuration remained unreadable beyond the grace period.</summary>
     ConfigUnrecoverable,
+
+    // --- 004-watcher-resilience additions ---
+
+    /// <summary>Equivalent to <see cref="StopSignaled"/> but named to match the JSON contract of <c>last-exit.json</c>. Used by <c>WatcherMain</c> when persisting the exit reason.</summary>
+    CooperativeShutdown,
+
+    /// <summary>An unhandled exception escaped the watcher's main thread. Written by the <c>AppDomain.UnhandledException</c> handler before the runtime terminates the process.</summary>
+    CrashedUnhandled,
+
+    /// <summary>Initialization failed before the poll loop could start (mutex creation, log init, staging-directory unwriteable, etc.).</summary>
+    StartupFailed,
+
+    /// <summary>The previous watcher was observed missing at the current watcher's startup — an external termination (TerminateProcess, antivirus kill) happened and no in-process write path could record it.</summary>
+    SupervisorObservedDead,
 }
 
 /// <summary>

@@ -2,8 +2,9 @@ namespace KbFix.Diagnostics;
 
 /// <summary>
 /// Process exit codes. The values are part of the public CLI contract — see
-/// <c>specs/001-fix-keyboard-layouts/contracts/cli.md</c> for 0/1/2/3/64 and
-/// <c>specs/003-background-watcher/contracts/cli.md</c> for 10..14. Do not
+/// <c>specs/001-fix-keyboard-layouts/contracts/cli.md</c> for 0/1/2/3/64,
+/// <c>specs/003-background-watcher/contracts/cli.md</c> for 10..14, and
+/// <c>specs/004-watcher-resilience/contracts/cli.md</c> for 15..17. Do not
 /// change existing values.
 /// </summary>
 internal static class ExitCodes
@@ -21,4 +22,9 @@ internal static class ExitCodes
     public const int RunningWithoutAutostart = 12;
     public const int StalePath = 13;
     public const int MixedOrCorrupt = 14;
+
+    // 004 contract — supervisor + autostart-effectiveness states.
+    public const int SupervisorBackingOff = 15;
+    public const int SupervisorGaveUp = 16;
+    public const int AutostartDegraded = 17;
 }

@@ -293,11 +293,24 @@ internal static class Program
             var report = InstallReporter.FormatInstall(before, results, after, options.Quiet);
             Console.Out.Write(report);
 
-            var failed = results.Any(r => !r.Succeeded);
-            if (failed)
+            // 004: a failed Scheduled-Task creation is a graceful-degradation
+            // condition, not a fatal install failure — the Run-key path still
+            // delivers autostart at next logon. Stay exit 0 but emit a stderr
+            // caveat so scripts can detect the degraded state.
+            var taskFailed = results.Any(r => r.Step is CreateScheduledTaskStep && !r.Succeeded);
+            var otherFailures = results.Any(r =>
+                !r.Succeeded && r.Step is not CreateScheduledTaskStep);
+
+            if (otherFailures)
             {
                 Console.Error.WriteLine("ERROR: one or more install steps failed. See report above.");
                 return ExitCodes.Failure;
+            }
+
+            if (taskFailed)
+            {
+                Console.Error.WriteLine("WARN: Scheduled-Task registration was refused. Installed in degraded mode (Run-key autostart only; no auto-restart after crash).");
+                return ExitCodes.Success;
             }
 
             return ExitCodes.Success;

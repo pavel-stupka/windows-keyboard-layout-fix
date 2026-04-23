@@ -8,10 +8,11 @@ internal sealed record Options(
     bool Install,
     bool Uninstall,
     bool Status,
-    bool Watch)
+    bool Watch,
+    bool Verbose = false)
 {
     public static Options Defaults { get; } =
-        new(false, false, false, false, false, false, false, false);
+        new(false, false, false, false, false, false, false, false, false);
 
     public bool IsSubcommand => Install || Uninstall || Status || Watch;
 
@@ -31,6 +32,7 @@ internal sealed record Options(
         var uninstall = false;
         var status = false;
         var watch = false;
+        var verbose = false;
 
         foreach (var raw in args)
         {
@@ -64,6 +66,9 @@ internal sealed record Options(
                 case "--watch":
                     watch = true;
                     break;
+                case "--verbose":
+                    verbose = true;
+                    break;
                 default:
                     usageExitCode = 64;
                     return Defaults;
@@ -84,14 +89,26 @@ internal sealed record Options(
             return Defaults;
         }
 
-        return new Options(dryRun, quiet, help, version, install, uninstall, status, watch);
+        // 004: --verbose is valid only with --status, and never with --quiet.
+        if (verbose && !status)
+        {
+            usageExitCode = 64;
+            return Defaults;
+        }
+        if (verbose && quiet)
+        {
+            usageExitCode = 64;
+            return Defaults;
+        }
+
+        return new Options(dryRun, quiet, help, version, install, uninstall, status, watch, verbose);
     }
 
     public const string UsageText =
         "Usage: kbfix [--dry-run] [--quiet] [--help] [--version]" + "\n" +
         "       kbfix --install   [--quiet]" + "\n" +
         "       kbfix --uninstall [--quiet]" + "\n" +
-        "       kbfix --status    [--quiet]" + "\n" +
+        "       kbfix --status    [--quiet | --verbose]" + "\n" +
         "" + "\n" +
         "  Removes keyboard layouts from the current Windows session that are not" + "\n" +
         "  present in the user's persisted (HKCU) keyboard configuration." + "\n" +
@@ -104,9 +121,14 @@ internal sealed record Options(
         "" + "\n" +
         "Background-watcher commands (per-user, no elevation):" + "\n" +
         "  --install              Stage kbfix.exe under %LOCALAPPDATA%\\KbFix, register" + "\n" +
-        "                         per-user autostart, and launch the watcher now." + "\n" +
-        "  --uninstall            Stop the watcher, remove the autostart entry, and" + "\n" +
-        "                         delete the staged binary." + "\n" +
-        "  --status               Report whether the watcher is running and whether" + "\n" +
-        "                         autostart is registered.";
+        "                         per-user autostart (Run key + Scheduled Task), and" + "\n" +
+        "                         launch the watcher now." + "\n" +
+        "  --uninstall            Stop the watcher, remove both autostart mechanisms," + "\n" +
+        "                         and delete the staged binary." + "\n" +
+        "  --status               Report whether the watcher is running, whether" + "\n" +
+        "                         autostart is registered and effective, the" + "\n" +
+        "                         supervisor state, and the previous-run exit reason." + "\n" +
+        "  --status --verbose     Same as --status, plus a paste-ready dump of the" + "\n" +
+        "                         log tail, scheduled-task XML, and last-exit.json." + "\n" +
+        "                         Mutually exclusive with --quiet.";
 }

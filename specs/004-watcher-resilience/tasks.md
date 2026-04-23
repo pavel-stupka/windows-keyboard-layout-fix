@@ -103,13 +103,13 @@ Also completed within US1 (originally in later phases but co-located for cohesio
 
 ### Implementation for User Story 3
 
-- [ ] T025 [US3] Extend `StatusReporter.Format` in `src/KbFix/Cli/StatusReporter.cs` with four new lines per `contracts/cli.md` §`--status`: `task:`, `supervisor:`, `last exit:`, `autostart effective at next logon:`; order and wording exactly per the contract. Keep the existing 003 lines in their existing positions so diff-consumers that pinned against the old format continue to see those lines unchanged.
-- [ ] T026 [US3] Extend `StatusReporter.ExitCodeFor` in `src/KbFix/Cli/StatusReporter.cs` to map the three new `InstalledState` values — `SupervisorBackingOff → 15`, `SupervisorGaveUp → 16`, `AutostartDegraded → 17`. The 003 mappings (10–14) are preserved verbatim.
-- [ ] T027 [US3] Add `--verbose` modifier handling to `src/KbFix/Cli/Options.cs` — field, parser case, mutual exclusion (`--verbose` + `--quiet` → exit 64; `--verbose` without `--status` → exit 64); extend `UsageText` to document the new modifier per `contracts/cli.md` §Synopsis.
-- [ ] T028 [US3] In `src/KbFix/Cli/StatusReporter.cs`, implement the `--verbose` snapshot assembly — three delimited blocks: `----- watcher.log (tail) -----` (last 40 lines of `WatcherInstallation.LogFilePath`, missing-file tolerant), `----- scheduled-task.xml -----` (inline the XML from `ScheduledTaskRegistry.QueryXml`, missing-task tolerant), `----- last-exit.json -----` (pretty-print via `JsonSerializer.Serialize(... { WriteIndented = true })`, missing-file tolerant). Each block also has a matching `----- end -----` footer.
-- [ ] T029 [US3] Route `options.Verbose` through `Program.RunStatus` in `src/KbFix/Program.cs` so the verbose branch calls into T028's snapshot assembly; quiet-mode path unchanged.
-- [ ] T030 [P] [US3] Unit tests in `tests/KbFix.Tests/Cli/StatusReporterTests.cs` — cover the six reportable state combinations (healthy / not-running-but-pending / gave-up / disabled / stale-path / not-installed); assert each produces the correct exit code via `ExitCodeFor`. Verbose-mode output assembly is exercised via injected file/XML/JSON strings (pure; no filesystem).
-- [ ] T031 [P] [US3] Unit tests in `tests/KbFix.Tests/Cli/OptionsTests.cs` — add cases for `--status --verbose` (OK), `--verbose --quiet` (exit 64), `--install --verbose` (exit 64), `--verbose` alone (exit 64). Leave every pre-existing test assertion unchanged.
+- [X] T025 [US3] `StatusReporter.Format` extended with four new lines — `task:`, `supervisor:`, `last exit:`, `effective:` — in the documented positions; label alignment widened from 3 to 4 spaces to accommodate the longer 004 labels. Existing 003 lines preserved in their original order.
+- [X] T026 [US3] `StatusReporter.ExitCodeFor` maps new `InstalledState` values to codes 15/16/17.
+- [X] T027 [US3] `--verbose` modifier added to Options — `Verbose` bool with default false, mutual exclusion with `--quiet` AND requiring `--status`, usage text extended per contract.
+- [X] T028 [US3] `StatusReporter.FormatVerbose` + `StatusReporter.ReadLogTail` emit the three delimited blocks (`watcher.log`, `scheduled-task.xml`, `last-exit.json`), each with a `----- end -----` footer and missing-file-tolerant fallbacks.
+- [X] T029 [US3] `Program.RunStatus` routes `options.Verbose` through `FormatVerbose`, pulling the log tail and task XML from their readers; non-verbose path unchanged.
+- [X] T030 [P] [US3] 6 new StatusReporterTests cover task/supervisor/last-exit/effective lines, verbose snapshot structure, and missing-file tolerance.
+- [X] T031 [P] [US3] 5 new OptionsTests cover `--status --verbose`, `--verbose` alone, `--install --verbose`, `--status --verbose --quiet`, and the default-false case.
 
 **Checkpoint**: US3 is complete — `--status` and `--status --verbose` both produce the documented output for every reportable state; exit codes match the contract.
 

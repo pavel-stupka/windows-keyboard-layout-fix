@@ -70,4 +70,45 @@ public class OptionsTests
         Assert.True(opts.DryRun);
         Assert.True(opts.Quiet);
     }
+
+    // ---------- 004: --verbose modifier ----------
+
+    [Fact]
+    public void Status_with_verbose_is_accepted()
+    {
+        var opts = Options.Parse(new[] { "--status", "--verbose" }, out var usage);
+        Assert.Null(usage);
+        Assert.True(opts.Status);
+        Assert.True(opts.Verbose);
+    }
+
+    [Fact]
+    public void Verbose_without_status_is_usage_error()
+    {
+        Options.Parse(new[] { "--verbose" }, out var usage);
+        Assert.Equal(64, usage);
+    }
+
+    [Fact]
+    public void Verbose_with_install_is_usage_error()
+    {
+        Options.Parse(new[] { "--install", "--verbose" }, out var usage);
+        Assert.Equal(64, usage);
+    }
+
+    [Fact]
+    public void Verbose_with_quiet_is_usage_error()
+    {
+        Options.Parse(new[] { "--status", "--verbose", "--quiet" }, out var usage);
+        Assert.Equal(64, usage);
+    }
+
+    [Fact]
+    public void Status_without_verbose_leaves_verbose_false()
+    {
+        var opts = Options.Parse(new[] { "--status" }, out var usage);
+        Assert.Null(usage);
+        Assert.True(opts.Status);
+        Assert.False(opts.Verbose);
+    }
 }

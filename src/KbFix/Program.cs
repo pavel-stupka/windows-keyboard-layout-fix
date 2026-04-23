@@ -210,7 +210,17 @@ internal static class Program
         try
         {
             var state = WatcherDiscovery.Probe();
-            var report = StatusReporter.Format(state, options.Quiet);
+            string report;
+            if (options.Verbose)
+            {
+                var logTail = StatusReporter.ReadLogTail();
+                var taskXml = Platform.Install.ScheduledTaskRegistry.QueryXml();
+                report = StatusReporter.FormatVerbose(state, logTail, taskXml, state.LastExitReason);
+            }
+            else
+            {
+                report = StatusReporter.Format(state, options.Quiet);
+            }
             Console.Out.Write(report);
             return StatusReporter.ExitCodeFor(state.Classify());
         }

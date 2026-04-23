@@ -56,6 +56,8 @@ public class WatcherLoopTests
         public void FlapBackoff() => Events.Add("flap");
         public void ConfigReadFailed(string reason) => Events.Add($"config-fail:{reason}");
         public void SessionEmptyRefused() => Events.Add("refused");
+        public void ProcessStartup(string previousReason) => Events.Add($"startup:{previousReason}");
+        public void SupervisorObservedDead(int previousPid) => Events.Add($"observed-dead:{previousPid}");
     }
 
     private sealed class VirtualClock

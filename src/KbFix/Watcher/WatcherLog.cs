@@ -12,6 +12,14 @@ internal interface IWatcherLog
     void FlapBackoff();
     void ConfigReadFailed(string reason);
     void SessionEmptyRefused();
+
+    // --- 004-watcher-resilience additions ---
+
+    /// <summary>Logged at every watcher process startup — includes the previous run's exit reason when <c>last-exit.json</c> was readable.</summary>
+    void ProcessStartup(string previousReason);
+
+    /// <summary>Logged when the current startup detects the previous watcher was killed externally (no clean exit record).</summary>
+    void SupervisorObservedDead(int previousPid);
 }
 
 /// <summary>
@@ -74,6 +82,8 @@ internal sealed class WatcherLog : IWatcherLog
     public void FlapBackoff() => Write("WARN", "flap-backoff");
     public void ConfigReadFailed(string reason) => Write("ERROR", $"config-read-failed reason={Sanitize(reason)}");
     public void SessionEmptyRefused() => Write("WARN", "session-empty-refused");
+    public void ProcessStartup(string previousReason) => Write("INFO", $"process-startup previous-exit={Sanitize(previousReason)}");
+    public void SupervisorObservedDead(int previousPid) => Write("WARN", $"supervisor-observed-dead previous-pid={previousPid}");
 
     private void Write(string level, string message)
     {

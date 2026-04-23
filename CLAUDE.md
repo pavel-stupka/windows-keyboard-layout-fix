@@ -1,6 +1,6 @@
 # windows_keyboard_layout Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-13
+Auto-generated from all feature plans. Last updated: 2026-04-23
 
 ## Active Technologies
 - C# 12 on .NET 8 (LTS) + Windows Text Services Framework (TSF) via COM interop (`ITfInputProcessorProfileMgr`, `ITfInputProcessorProfiles`); Win32 input-locale APIs via P/Invoke (`GetKeyboardLayoutList`, `LoadKeyboardLayout`, `UnloadKeyboardLayout`, `ActivateKeyboardLayout`); standard `Microsoft.Win32.Registry` for reading `HKCU\Keyboard Layout\Preload`. No third-party NuGet packages. (001-fix-keyboard-layouts)

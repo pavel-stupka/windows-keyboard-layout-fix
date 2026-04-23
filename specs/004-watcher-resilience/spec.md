@@ -440,11 +440,15 @@ only A's events.
   is running within 30 seconds of the interactive shell becoming
   responsive. Zero sign-ins in the sample result in "watcher not running
   at 30 seconds."
-- **SC-002**: When the watcher process is forcibly killed, a replacement
-  watcher process is running again within 15 seconds, on a typical
-  machine, in at least 9 out of 10 successive trials. The 10th trial, if
-  it fails, must not leave the machine in a permanently broken state —
-  a further kill or a reboot must recover.
+- **SC-002**: When the watcher process is forcibly killed (external
+  termination, not a cooperative `--uninstall`), a replacement watcher
+  process is running again within 90 seconds, on a typical machine, in
+  at least 9 out of 10 successive trials. The 10th trial, if it fails,
+  must not leave the machine in a permanently broken state — a further
+  kill, a re-install, or a reboot must recover. (Target lowered from an
+  initial 15-second target during planning, because that target required
+  a sidecar supervisor process whose complexity was judged unjustified
+  against the observed failure mode; see research R1.)
 - **SC-003**: On a machine where the watcher is running and healthy, the
   combined CPU cost of the watcher and the supervision mechanism,
   averaged over one minute of idle desktop, is indistinguishable from

@@ -44,17 +44,24 @@ Performs a single cleanup pass and exits. Unchanged from v1:
 ### From a terminal — background watcher
 
 `--install` stages the binary under `%LOCALAPPDATA%\KbFix\`, registers
-per-user autostart via `HKCU\...\Run\KbFixWatcher`, and launches a
-persistent watcher that re-runs the fix every couple of seconds for the
-rest of the user session. Per-user, no elevation, fully reversible.
+two layers of per-user autostart — the `HKCU\...\Run\KbFixWatcher` key
+*and* a per-user Scheduled Task `\KbFix\KbFixWatcher` (At logon +
+Restart on failure) — and launches a persistent watcher that re-runs
+the fix every couple of seconds for the rest of the user session. If
+the watcher dies involuntarily (crash, external kill), the Scheduled
+Task's Restart-on-failure brings it back within ~90 s. Per-user,
+no elevation, fully reversible.
 
 ```powershell
-.\kbfix.exe --install    # set it and forget it
-.\kbfix.exe --status     # running + autostart state + log path
-.\kbfix.exe --uninstall  # stop watcher, clean everything up
+.\kbfix.exe --install          # set it and forget it
+.\kbfix.exe --status           # running + autostart + supervisor + last exit
+.\kbfix.exe --status --verbose # full snapshot (log tail + task XML + last-exit.json)
+.\kbfix.exe --uninstall        # stop watcher, clean everything up
 ```
 
-The watcher logs to `%LOCALAPPDATA%\KbFix\watcher.log`. Set
+The watcher logs to `%LOCALAPPDATA%\KbFix\watcher.log` and persists
+the most-recent exit reason to `%LOCALAPPDATA%\KbFix\last-exit.json`
+so `--status` can tell you *why* the watcher stopped last time. Set
 `KBFIX_DEBUG=1` in your environment before installing if you want
 per-poll-cycle DEBUG output in the log.
 
@@ -65,7 +72,9 @@ per-poll-cycle DEBUG output in the log.
 `64` usage error. `--status` additionally uses: `10` not installed,
 `11` installed but watcher not running, `12` watcher running without
 autostart, `13` autostart points at a stale path, `14` mixed/corrupt
-state.
+state, `15` supervisor backing off (restart pending), `16` supervisor
+gave up (re-run `--install` to re-arm), `17` autostart mechanisms
+registered but all disabled at next logon.
 
 ## Build
 
@@ -114,6 +123,11 @@ The full feature spec, plan, contracts, and task list live under:
 - `specs/003-background-watcher/` — the background watcher, `--install` /
   `--uninstall` / `--status` commands, and the trimming work that shrank
   the binary from 80+ MB to ~12 MB.
+- `specs/004-watcher-resilience/` — layered autostart (Run key + per-user
+  Scheduled Task with Restart-on-failure), watcher self-restart after
+  crashes, exit-reason persistence to `last-exit.json`, extended `--status`
+  output (task + supervisor + last-exit + effective lines) plus
+  `--status --verbose` bug-report snapshot, and exit codes 15–17.
 
 ## How this project was built
 

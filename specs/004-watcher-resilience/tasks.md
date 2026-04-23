@@ -155,12 +155,12 @@ Also completed within US1 (originally in later phases but co-located for cohesio
 
 **Purpose**: Release readiness. None of these block per-story independence; they gate shipping.
 
-- [ ] T042 [P] Run `build.cmd release` and confirm the published binary size remains ≤ 20 MB, ideally ≤ 15 MB (SC-006); compare to T001's baseline and investigate any growth > 0.5 MB.
-- [ ] T043 [P] Run `build.cmd release --test` and confirm the entire test suite (001 + 002 + 003 + 004) passes green with zero trim warnings introduced by T006's `System.Text.Json` source-generator.
-- [ ] T044 Update `README.md` Scope and Specification sections to mention 004 — layered autostart, self-restart via Scheduled Task, new `--status --verbose` snapshot, exit codes 15/16/17; keep the `dist/` wrapper section unchanged (install.cmd/uninstall.cmd/status.cmd behaviour is unchanged from the user's perspective).
-- [ ] T045 Update `dist-README.txt` (or the template the build produces it from) to document the new `--status` output lines and exit codes; keep the overall voice aimed at non-technical end users.
-- [ ] T046 Execute the full manual-verification gate from `quickstart.md` §§2–10 on a clean Windows 11 machine: fresh install, 003 upgrade, layer-1 verification, layer-2 kill recovery (10 trials), pathological crash loop (give-up verification), Startup-Apps-toggle probe, reboot-mode matrix (5×5), `--verbose` snapshot, uninstall, policy-degraded verification. Record any failure as a bug before shipping.
-- [ ] T047 Verify the inherited constitutional RDP-injection gate still passes — with 004 installed, trigger an RDP-injected layout and confirm the watcher removes it within a few seconds; confirms no regression against features 001/003.
+- [X] T042 [P] Release build + size check: 12,078,936 B (~11.5 MB), up ~430 KB from the 003 baseline (11.1 MB). Well under SC-006's 20 MB target (and within the ≤ 15 MB stretch target). Only the pre-existing IL2008 trim warning in System.Diagnostics.FileVersionInfo; no new warnings introduced.
+- [X] T043 [P] Release test suite: 140/140 pass in release build with trimming enabled. `System.Text.Json` source-gen context flows through the trimmer cleanly.
+- [X] T044 Updated `README.md` — layered autostart + Scheduled Task description, new `--status --verbose` snapshot, exit codes 15/16/17 in the exit-code reference, 004 entry in the Specification section.
+- [X] T045 Updated `dist-README.txt` — install.cmd description mentions the Scheduled Task layer, troubleshooting section documents the new `--status --verbose` bug-report flow, exit-code reference extended with 15/16/17.
+- [ ] T046 *(User-side — not doable from this session.)* Execute the full manual-verification gate from `quickstart.md` §§2–10 on a clean Windows 11 machine: fresh install, 003 upgrade, layer-1 verification, layer-2 kill recovery (10 trials), pathological crash loop (give-up verification), Startup-Apps-toggle probe, reboot-mode matrix (5×5), `--verbose` snapshot, uninstall, policy-degraded verification. Record any failure as a bug before shipping.
+- [ ] T047 *(User-side — not doable from this session.)* Verify the inherited constitutional RDP-injection gate still passes — with 004 installed, trigger an RDP-injected layout and confirm the watcher removes it within a few seconds; confirms no regression against features 001/003.
 
 ---
 

@@ -26,18 +26,25 @@ internal static class InstallReporter
         {
             var stagedLine = GetStagedLine(results, after);
             var autostartLine = GetAutostartLine(results, after);
+            var taskLine = GetTaskLine(results, after);
             var watcherLine = GetWatcherLine(results, before, after);
 
             sb.AppendLine($"  staged:    {stagedLine}");
             sb.AppendLine($"  autostart: {autostartLine}");
+            sb.AppendLine($"  task:      {taskLine}");
             sb.AppendLine($"  watcher:   {watcherLine}");
             sb.AppendLine();
         }
 
         var noChange = results.Count == 0;
+        var taskFailed = results.Any(r => r.Step is CreateScheduledTaskStep && !r.Succeeded);
         if (noChange)
         {
             sb.AppendLine("Already installed.");
+        }
+        else if (taskFailed)
+        {
+            sb.AppendLine("Installed (degraded — no scheduled task). The Run-key autostart will fire at next logon, but the watcher cannot auto-restart after a crash.");
         }
         else
         {
@@ -59,6 +66,7 @@ internal static class InstallReporter
         {
             sb.AppendLine($"  watcher:   {FormatUninstallWatcherLine(before, results)}");
             sb.AppendLine($"  autostart: {FormatUninstallAutostartLine(before, results)}");
+            sb.AppendLine($"  task:      {FormatUninstallTaskLine(before, results)}");
             sb.AppendLine($"  staged:    {FormatUninstallStagedLine(before, results)}");
             sb.AppendLine();
         }
@@ -213,6 +221,53 @@ internal static class InstallReporter
             InstallExecutor.NoteDeleteFailed => $"{before.StagedBinaryPath}  (delete FAILED — file still present; try running --uninstall again from a different location)",
             _ => before.StagedBinaryPath,
         };
+    }
+
+    // -------- 004 scheduled-task lines --------
+
+    private static string GetTaskLine(IReadOnlyList<InstallExecutor.StepResult> results, WatcherInstallation after)
+    {
+        var taskResult = results.FirstOrDefault(r => r.Step is CreateScheduledTaskStep);
+        if (taskResult is null)
+        {
+            if (after.ScheduledTask is { Present: true })
+            {
+                return $"\\{WatcherInstallation.ScheduledTaskName}  (unchanged)";
+            }
+            return "not installed";
+        }
+        if (!taskResult.Succeeded)
+        {
+            return $"NOT installed — schtasks denied creation ({Trim(taskResult.Note)})";
+        }
+        return $"\\{WatcherInstallation.ScheduledTaskName}  (At logon + Restart on failure)";
+    }
+
+    private static string FormatUninstallTaskLine(
+        WatcherInstallation before,
+        IReadOnlyList<InstallExecutor.StepResult> results)
+    {
+        var r = results.FirstOrDefault(s => s.Step is DeleteScheduledTaskStep);
+        if (r is null)
+        {
+            return before.ScheduledTask is { Present: true }
+                ? $"\\{WatcherInstallation.ScheduledTaskName}  (NOT removed)"
+                : "not present";
+        }
+        if (!r.Succeeded)
+        {
+            return $"\\{WatcherInstallation.ScheduledTaskName}  (delete FAILED: {Trim(r.Note)})";
+        }
+        return r.Note == "deleted"
+            ? $"\\{WatcherInstallation.ScheduledTaskName}  (removed)"
+            : "not present";
+    }
+
+    private static string Trim(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return "";
+        var first = s.Split('\n').FirstOrDefault()?.Trim() ?? "";
+        return first.Length > 120 ? first.Substring(0, 120) : first;
     }
 
     // -------- status lines --------

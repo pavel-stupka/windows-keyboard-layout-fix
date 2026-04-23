@@ -97,14 +97,23 @@ public class InstallDecisionTests
             s => Assert.IsType<EnsureStagingDirectoryStep>(s),
             s => Assert.Equal(DownloadsPath, Assert.IsType<CopyBinaryToStagedStep>(s).SourcePath),
             s => Assert.Equal(StagedPath, Assert.IsType<WriteRunKeyStep>(s).StagedPath),
-            s => Assert.Equal(StagedPath, Assert.IsType<SpawnWatcherStep>(s).StagedPath));
+            s => Assert.Equal(StagedPath, Assert.IsType<SpawnWatcherStep>(s).StagedPath),
+            // 004: Scheduled-Task registration is always appended.
+            s => Assert.IsType<ExportScheduledTaskXmlStep>(s),
+            s => Assert.IsType<CreateScheduledTaskStep>(s));
     }
 
     [Fact]
-    public void Install_from_already_healthy_state_is_a_noop_when_invoking_equals_staged()
+    public void Install_from_already_healthy_003_state_appends_task_install_steps_for_upgrade()
     {
+        // 003-era InstalledHealthy has no task. Re-running --install under 004
+        // must therefore append the Export+Create pair — this is the upgrade path.
         var steps = InstallDecision.ComputeInstallSteps(InstalledHealthy(), StagedPath);
-        Assert.Empty(steps);
+
+        Assert.Collection(
+            steps,
+            s => Assert.IsType<ExportScheduledTaskXmlStep>(s),
+            s => Assert.IsType<CreateScheduledTaskStep>(s));
     }
 
     [Fact]
@@ -118,7 +127,10 @@ public class InstallDecisionTests
             s => Assert.Equal(4242, Assert.IsType<ForceKillWatcherStep>(s).Pid),
             s => Assert.IsType<EnsureStagingDirectoryStep>(s),
             s => Assert.Equal(DownloadsPath, Assert.IsType<CopyBinaryToStagedStep>(s).SourcePath),
-            s => Assert.Equal(StagedPath, Assert.IsType<SpawnWatcherStep>(s).StagedPath));
+            s => Assert.Equal(StagedPath, Assert.IsType<SpawnWatcherStep>(s).StagedPath),
+            // 004: appended on every install path.
+            s => Assert.IsType<ExportScheduledTaskXmlStep>(s),
+            s => Assert.IsType<CreateScheduledTaskStep>(s));
     }
 
     [Fact]
@@ -149,10 +161,12 @@ public class InstallDecisionTests
     {
         var steps = InstallDecision.ComputeInstallSteps(InstalledNotRunning(), StagedPath);
 
-        // invoking == staged, autostart is already correct → only the respawn.
+        // invoking == staged, autostart is already correct → respawn + task.
         Assert.Collection(
             steps,
-            s => Assert.Equal(StagedPath, Assert.IsType<SpawnWatcherStep>(s).StagedPath));
+            s => Assert.Equal(StagedPath, Assert.IsType<SpawnWatcherStep>(s).StagedPath),
+            s => Assert.IsType<ExportScheduledTaskXmlStep>(s),
+            s => Assert.IsType<CreateScheduledTaskStep>(s));
     }
 
     // -------------------------- Uninstall decisions -------------------------
@@ -167,6 +181,9 @@ public class InstallDecisionTests
     [Fact]
     public void Uninstall_from_healthy_stops_watcher_and_removes_everything()
     {
+        // 003-era InstalledHealthy has no task, so the Scheduled-Task delete
+        // step is skipped (SupervisorDecision.AppendUninstallSteps only
+        // emits when state.ScheduledTask.Present == true).
         var steps = InstallDecision.ComputeUninstallSteps(InstalledHealthy(pid: 777), DownloadsPath);
 
         Assert.Collection(
@@ -174,6 +191,25 @@ public class InstallDecisionTests
             s => Assert.Equal(3000, Assert.IsType<SignalStopEventStep>(s).TimeoutMs),
             s => Assert.Equal(777, Assert.IsType<ForceKillWatcherStep>(s).Pid),
             s => Assert.IsType<DeleteRunKeyStep>(s),
+            s => Assert.IsType<DeleteStagedBinaryStep>(s),
+            s => Assert.IsType<DeleteStagingDirectoryStep>(s));
+    }
+
+    [Fact]
+    public void Uninstall_from_healthy_004_state_also_deletes_the_scheduled_task()
+    {
+        var state = InstalledHealthy(pid: 777) with
+        {
+            ScheduledTask = new ScheduledTaskEntry(Present: true, Enabled: true, Status: ScheduledTaskStatus.Ready),
+        };
+        var steps = InstallDecision.ComputeUninstallSteps(state, DownloadsPath);
+
+        Assert.Collection(
+            steps,
+            s => Assert.IsType<SignalStopEventStep>(s),
+            s => Assert.IsType<ForceKillWatcherStep>(s),
+            s => Assert.IsType<DeleteRunKeyStep>(s),
+            s => Assert.IsType<DeleteScheduledTaskStep>(s),
             s => Assert.IsType<DeleteStagedBinaryStep>(s),
             s => Assert.IsType<DeleteStagingDirectoryStep>(s));
     }

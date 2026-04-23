@@ -61,6 +61,10 @@ internal static class InstallDecision
             steps.Add(new SpawnWatcherStep(stagedPath));
         }
 
+        // 004: also install / refresh the per-user Scheduled Task as the
+        // second autostart mechanism + out-of-process supervisor.
+        SupervisorDecision.AppendInstallSteps(steps, state, invokingBinaryPath);
+
         return steps;
     }
 
@@ -83,6 +87,11 @@ internal static class InstallDecision
         {
             steps.Add(new DeleteRunKeyStep());
         }
+
+        // 004: also tear down the Scheduled Task, before we delete the
+        // binary it references. Only emits when task is actually present —
+        // preserves 003's "nothing installed → no-op" contract.
+        SupervisorDecision.AppendUninstallSteps(steps, state);
 
         if (state.StagedBinaryExists)
         {
@@ -138,3 +147,14 @@ internal sealed record SpawnWatcherStep(string StagedPath) : InstallStep;
 internal sealed record DeleteStagedBinaryStep : InstallStep;
 internal sealed record DeleteStagingDirectoryStep : InstallStep;
 internal sealed record ReportStatusStep : InstallStep;
+
+// --- 004-watcher-resilience additions ---
+
+/// <summary>Writes the Task Scheduler XML to <paramref name="DestPath"/> so the installer can hand it to schtasks /Create /XML.</summary>
+internal sealed record ExportScheduledTaskXmlStep(string DestPath, string StagedPath) : InstallStep;
+
+/// <summary>Invokes <c>schtasks /Create /XML &lt;path&gt; /F</c> to register the per-user task.</summary>
+internal sealed record CreateScheduledTaskStep(string XmlPath) : InstallStep;
+
+/// <summary>Invokes <c>schtasks /Delete /TN ... /F</c>. Idempotent — absence counted as success.</summary>
+internal sealed record DeleteScheduledTaskStep : InstallStep;

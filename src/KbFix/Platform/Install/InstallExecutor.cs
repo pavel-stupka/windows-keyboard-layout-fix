@@ -42,6 +42,9 @@ internal sealed class InstallExecutor
                 DeleteStagedBinaryStep => ApplyDeleteStagedBinary(step),
                 DeleteStagingDirectoryStep => ApplyDeleteStagingDirectory(step),
                 ReportStatusStep => new StepResult(step, true, null),
+                ExportScheduledTaskXmlStep x => ApplyExportScheduledTaskXml(step, x),
+                CreateScheduledTaskStep c => ApplyCreateScheduledTask(step, c),
+                DeleteScheduledTaskStep => ApplyDeleteScheduledTask(step),
                 _ => new StepResult(step, false, $"unknown step type: {step.GetType().Name}"),
             };
             results.Add(result);
@@ -149,5 +152,49 @@ internal sealed class InstallExecutor
     {
         BinaryStaging.DeleteStagingDirectory();
         return new StepResult(step, true, null);
+    }
+
+    // --- 004-watcher-resilience step handlers ---
+
+    private static StepResult ApplyExportScheduledTaskXml(InstallStep step, ExportScheduledTaskXmlStep x)
+    {
+        try
+        {
+            var xml = ScheduledTaskRegistry.BuildTaskXml(x.StagedPath, ScheduledTaskRegistry.CurrentUserSid());
+            Directory.CreateDirectory(Path.GetDirectoryName(x.DestPath)!);
+            File.WriteAllText(x.DestPath, xml);
+            return new StepResult(step, true, null);
+        }
+        catch (Exception ex)
+        {
+            return new StepResult(step, false, ex.Message);
+        }
+    }
+
+    private static StepResult ApplyCreateScheduledTask(InstallStep step, CreateScheduledTaskStep c)
+    {
+        try
+        {
+            ScheduledTaskRegistry.Create(c.XmlPath);
+            return new StepResult(step, true, "installed");
+        }
+        catch (Exception ex)
+        {
+            // Degraded — install succeeds in Run-key-only mode.
+            return new StepResult(step, false, ex.Message);
+        }
+    }
+
+    private static StepResult ApplyDeleteScheduledTask(InstallStep step)
+    {
+        try
+        {
+            var existed = ScheduledTaskRegistry.Delete();
+            return new StepResult(step, true, existed ? "deleted" : "not present");
+        }
+        catch (Exception ex)
+        {
+            return new StepResult(step, false, ex.Message);
+        }
     }
 }

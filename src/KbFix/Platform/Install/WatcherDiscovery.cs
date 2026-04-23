@@ -27,14 +27,41 @@ internal static class WatcherDiscovery
         var watcherRunning = IsWatcherRunning();
         var watcherPid = watcherRunning ? TryReadPidFile() : null;
 
-        return new WatcherInstallation(
+        // --- 004 probe surface ---
+        ScheduledTaskEntry taskEntry;
+        try
+        {
+            taskEntry = ScheduledTaskRegistry.Query();
+        }
+        catch
+        {
+            taskEntry = ScheduledTaskEntry.Absent;
+        }
+
+        var runKeyApproved = StartupApprovedProbe.IsRunKeyApproved();
+
+        LastExitReason? lastExit = LastExitReasonStore.Read();
+
+        // Build the base record first, then derive the two classifiers against
+        // the fully-populated snapshot (they need the ScheduledTask field).
+        var baseInstallation = new WatcherInstallation(
             StagedBinaryPath: stagedPath,
             StagedBinaryExists: stagedExists,
             AutostartEntryPresent: autostartPresent,
             AutostartEntryTarget: autostartTarget,
             AutostartEntryPointsAtStaged: autostartPointsAtStaged,
             WatcherRunning: watcherRunning,
-            WatcherPid: watcherPid);
+            WatcherPid: watcherPid)
+        {
+            ScheduledTask = taskEntry,
+            LastExitReason = lastExit,
+        };
+
+        return baseInstallation with
+        {
+            SupervisorState = SupervisorDecision.ClassifySupervisor(baseInstallation),
+            AutostartEffectiveness = SupervisorDecision.ClassifyAutostart(baseInstallation, runKeyApproved),
+        };
     }
 
     /// <summary>

@@ -19,11 +19,11 @@ A release build (`build.cmd release`) drops `kbfix.exe` into `dist\` along
 with three small batch wrappers you can double-click from Explorer — no
 terminal needed:
 
-| Wrapper         | What it does                                          |
-|-----------------|-------------------------------------------------------|
-| `install.cmd`   | Installs the background watcher for the current user. |
-| `uninstall.cmd` | Stops the watcher and removes everything.             |
-| `status.cmd`    | Reports whether the watcher is running.               |
+| Wrapper         | What it does                                                                                       |
+|-----------------|----------------------------------------------------------------------------------------------------|
+| `install.cmd`   | Installs the background watcher (Run key + per-user Scheduled Task with Restart on failure).      |
+| `uninstall.cmd` | Stops the watcher and tears down both autostart mechanisms + all per-user state.                   |
+| `status.cmd`    | Reports the watcher state, autostart effectiveness, supervisor state, and the last exit reason.   |
 
 Each wrapper opens a console window, runs `kbfix.exe` with the matching
 flag, and pauses at the end so you can read the output before closing the
@@ -99,8 +99,15 @@ for the full contract.
 ## Run and verify
 
 See [`specs/001-fix-keyboard-layouts/quickstart.md`](specs/001-fix-keyboard-layouts/quickstart.md)
-for the run instructions and the **mandatory manual RDP verification** that
-gates every release per the project constitution.
+for the core one-shot run instructions and the **mandatory manual RDP
+verification** that gates every release per the project constitution.
+
+The background watcher adds additional manual-verification scenarios in
+[`specs/004-watcher-resilience/quickstart.md`](specs/004-watcher-resilience/quickstart.md) —
+in particular §5 (layer-2 kill recovery, 10 consecutive-kill trials),
+§6 (Startup-Apps-toggle effectiveness probe), §7 (5×5 reboot-mode
+matrix), and §11 (multi-user isolation). These supplement the 001 RDP
+gate; they do not replace it.
 
 ## Scope
 
@@ -109,7 +116,10 @@ Removal-only, current-user session, no GUI. Two modes:
 - **One-shot** (`kbfix`) — runs once and exits. The original v1 behaviour.
 - **Background watcher** (`kbfix --install` / `--watch`) — keeps running
   in the user session and re-applies the fix automatically whenever the
-  session drifts (e.g. after an RDP disconnect). Added in spec 003.
+  session drifts (e.g. after an RDP disconnect). Originally added in
+  spec 003; hardened in spec 004 with two-layer autostart (Run key +
+  per-user Scheduled Task) and automatic self-restart within ~90 s if
+  the watcher is ever killed.
 
 No Administrator rights at any point. Published as a single self-contained
 ~12 MB `.exe` — no .NET runtime needed on the target machine.
@@ -134,9 +144,10 @@ The full feature spec, plan, contracts, and task list live under:
 Every artifact in this repository — the C# source under `src/`, the tests
 under `tests/`, `build.cmd`, the constitution under `.specify/memory/`, and
 every document under `specs/` — was produced by [Claude Code](https://claude.com/claude-code)
-running the **Claude Opus 4.6 (1M context)** model, driven by the
-[GitHub Spec Kit](https://github.com/github/spec-kit) workflow
+driven by the [GitHub Spec Kit](https://github.com/github/spec-kit) workflow
 (`/speckit.specify` → `/speckit.plan` → `/speckit.tasks` → `/speckit.implement`).
+Features 001–003 were produced by **Claude Opus 4.6 (1M context)**;
+feature 004 (watcher resilience) by **Claude Opus 4.7 (1M context)**.
 The human author's role was limited to stating intent in Czech at each
 speckit phase, reviewing the generated plans, and running the manual
 verification steps that the constitution requires.
